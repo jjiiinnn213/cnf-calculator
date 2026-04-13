@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CNF 배합 및 희석 계산기</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --blue: #1a56db;
+    --blue-dark: #1447c0;
+    --blue-light: #e8f0fe;
+    --blue-mid: #c7d7f8;
+    --bg: #f8f9fb;
+    --white: #ffffff;
+    --border: #e2e8f0;
+    --text: #0f1f3d;
+    --text-muted: #5a6a8a;
+    --text-faint: #8899aa;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans KR', sans-serif;
+    --success-bg: #ecfdf5; --success-border: #6ee7b7; --success-text: #065f46;
+    --error-bg: #fef2f2;  --error-border: #fca5a5;  --error-text: #991b1b;
+    --info-bg: #eff6ff;   --info-border: #93c5fd;   --info-text: #1e40af;
+    --warn-bg: #fff7ed;   --warn-border: #f97316;   --warn-text: #c2580a;
+  }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding-bottom: 60px;
+  }
+
+  /* ── Header ── */
+  .app-header {
+    background: var(--white);
+    border-bottom: 2px solid var(--blue);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  .app-header h1 { font-size: 1.2rem; font-weight: 600; color: var(--text); letter-spacing: -0.3px; }
+  .badge {
+    background: var(--blue-light); color: var(--blue);
+    font-size: 0.65rem; font-weight: 700;
+    padding: 3px 8px; border-radius: 4px; letter-spacing: 0.8px;
+    margin-left: 4px;
+  }
+
+  /* ── Layout ── */
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 720px) {
+    .two-col { grid-template-columns: 1fr; }
+  }
+
+  /* ── Card ── */
+  .card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .card-title {
+    font-size: 0.7rem; font-weight: 700;
+    color: var(--blue); letter-spacing: 1.2px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--blue-light);
+  }
+
+  /* ── Form ── */
+  .field-row { display: grid; gap: 12px; margin-bottom: 12px; }
+  .field-row.col2 { grid-template-columns: 1fr 1fr; }
+  .field-row.col3 { grid-template-columns: 1fr 1fr 1fr; }
+  @media (max-width: 480px) {
+    .field-row.col2, .field-row.col3 { grid-template-columns: 1fr 1fr; }
+  }
+
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  label { font-size: 0.78rem; font-weight: 500; color: var(--text-muted); }
+  input[type="number"] {
+    font-family: var(--mono);
+    font-size: 0.95rem;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #fafbfc;
+    color: var(--text);
+    width: 100%;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    -webkit-appearance: none;
+  }
+  input[type="number"]:focus {
+    outline: none;
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px rgba(26,86,219,0.12);
+  }
+
+  /* ── Alerts ── */
+  .alert {
+    font-size: 0.82rem; font-weight: 500;
+    padding: 8px 12px; border-radius: 6px;
+    margin-bottom: 10px;
+    border-left: 3px solid;
+  }
+  .alert-success { background: var(--success-bg); border-color: var(--success-border); color: var(--success-text); }
+  .alert-error   { background: var(--error-bg);   border-color: var(--error-border);   color: var(--error-text); }
+  .alert-info    { background: var(--info-bg);     border-color: var(--info-border);    color: var(--info-text); }
+
+  /* ── Button ── */
+  .btn-calc {
+    display: block; width: 100%;
+    background: var(--blue); color: white;
+    border: none; border-radius: 8px;
+    padding: 12px 24px;
+    font-family: var(--sans); font-size: 1rem; font-weight: 600;
+    cursor: pointer; letter-spacing: 0.3px;
+    transition: background 0.15s, transform 0.1s;
+    margin-top: 6px;
+  }
+  .btn-calc:hover { background: var(--blue-dark); }
+  .btn-calc:active { transform: scale(0.98); }
+
+  /* ── Results ── */
+  #results { display: none; margin-top: 8px; }
+  .divider { border: none; border-top: 2px solid var(--border); margin: 24px 0; }
+  .results-title { font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: 16px; }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 4px;
+  }
+  @media (max-width: 600px) { .kpi-grid { grid-template-columns: 1fr 1fr; } }
+
+  .kpi {
+    border-radius: 8px; padding: 14px 16px;
+    border: 1px solid var(--blue-mid);
+    background: #f0f5ff;
+  }
+  .kpi.blue { background: var(--blue); border-color: var(--blue); }
+  .kpi.blue .kpi-label { color: #a8c4ff; }
+  .kpi.blue .kpi-val   { color: white; }
+  .kpi.warn { background: var(--warn-bg); border-color: var(--warn-border); }
+  .kpi.warn .kpi-label { color: var(--warn-text); }
+  .kpi.warn .kpi-val   { color: var(--warn-text); }
+  .kpi-label { font-size: 0.7rem; color: var(--text-muted); font-weight: 500; margin-bottom: 4px; }
+  .kpi-val   { font-family: var(--mono); font-size: 1.2rem; font-weight: 500; line-height: 1.2; }
+  .kpi-unit  { font-size: 0.72rem; color: var(--text-faint); margin-left: 2px; }
+  .kpi.blue .kpi-unit { color: #a8c4ff; }
+
+  /* ── Tabs ── */
+  .tab-bar { display: flex; gap: 4px; border-bottom: 2px solid var(--border); margin-bottom: 16px; }
+  .tab-btn {
+    background: none; border: none;
+    padding: 10px 18px; font-family: var(--sans); font-size: 0.85rem; font-weight: 500;
+    color: var(--text-muted); cursor: pointer; border-radius: 6px 6px 0 0;
+    border-bottom: 2px solid transparent; margin-bottom: -2px;
+    transition: color 0.15s;
+  }
+  .tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+  .tab-btn:hover:not(.active) { color: var(--text); background: var(--bg); }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
+  /* ── Table ── */
+  .tbl-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  th {
+    background: #f0f4f8; color: var(--text-muted);
+    font-weight: 600; font-size: 0.7rem; letter-spacing: 0.5px; text-transform: uppercase;
+    padding: 9px 12px; text-align: left; border-bottom: 2px solid var(--border);
+  }
+  td { padding: 9px 12px; border-bottom: 1px solid #f0f4f8; color: #2d3a4a; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f8faff; }
+  .num { font-family: var(--mono); font-weight: 500; text-align: right; color: var(--blue); }
+  .na  { color: #b0bac8; font-style: italic; text-align: right; }
+  .row-sub td { background: #f0f5ff; font-weight: 600; }
+  .row-tot td { background: var(--blue-light); font-weight: 700; font-size: 0.9rem; color: var(--text); }
+
+  /* ── Recipe (code) ── */
+  .recipe-box {
+    font-family: var(--mono); font-size: 0.82rem;
+    background: #1a1f2e; color: #c9d7f0;
+    padding: 20px 22px; border-radius: 10px;
+    white-space: pre; overflow-x: auto;
+    line-height: 1.7;
+  }
+
+  .copy-btn {
+    display: inline-block; margin-top: 10px;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-muted); font-family: var(--sans); font-size: 0.8rem;
+    padding: 6px 14px; border-radius: 6px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .copy-btn:hover { background: var(--bg); color: var(--text); }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <span style="font-size:1.4rem">🧪</span>
+  <h1>CNF 배합 및 희석 계산기</h1>
+  <span class="badge">LAB TOOL</span>
+</header>
+
+<div class="container">
+
+  <div class="two-col">
+    <!-- ─── 왼쪽 ─── -->
+    <div>
+      <!-- ① 기본 조건 -->
+      <div class="card">
+        <div class="card-title">① 기본 조건</div>
+        <div class="field-row col2">
+          <div class="field">
+            <label for="basis_weight">목표 평량 (g/m²)</label>
+            <input type="number" id="basis_weight" value="100" min="0" step="1">
+          </div>
+          <div class="field">
+            <label for="sheet_count">샘플 장 수</label>
+            <input type="number" id="sheet_count" value="1" min="1" step="1">
+          </div>
+        </div>
+      </div>
+
+      <!-- ② 원료 농도 -->
+      <div class="card">
+        <div class="card-title">② 원료 현탁액 농도 (wt%)</div>
+        <div class="field-row col3">
+          <div class="field">
+            <label for="ukp_conc">UKP</label>
+            <input type="number" id="ukp_conc" value="2.0" min="0.01" step="0.1">
+          </div>
+          <div class="field">
+            <label for="cnf_a_conc">CNF A</label>
+            <input type="number" id="cnf_a_conc" value="1.0" min="0.01" step="0.1">
+          </div>
+          <div class="field">
+            <label for="cnf_c_conc">CNF C</label>
+            <input type="number" id="cnf_c_conc" value="1.0" min="0.01" step="0.1">
+          </div>
+        </div>
+      </div>
+
+      <!-- ④ 첨가제 -->
+      <div class="card">
+        <div class="card-title">④ 첨가제 투입 비율 — 총 건조 고형분 기준 (0% = 미투입)</div>
+        <div class="field-row col2">
+          <div class="field">
+            <label for="wet_strength">습강제 (%)</label>
+            <input type="number" id="wet_strength" value="0" min="0" max="100" step="0.1">
+          </div>
+          <div class="field">
+            <label for="retention">정착제 (%)</label>
+            <input type="number" id="retention" value="0" min="0" max="100" step="0.1">
+          </div>
+          <div class="field">
+            <label for="sizing">사이징제 (%)</label>
+            <input type="number" id="sizing" value="0" min="0" max="100" step="0.1">
+          </div>
+          <div class="field">
+            <label for="dispersant">분산제 (%)</label>
+            <input type="number" id="dispersant" value="0" min="0" max="100" step="0.1">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── 오른쪽 ─── -->
+    <div>
+      <!-- ③ 배합비 -->
+      <div class="card">
+        <div class="card-title">③ 배합비</div>
+        <div class="field-row col2">
+          <div class="field">
+            <label for="ukp_ratio">UKP 비율 (%)</label>
+            <input type="number" id="ukp_ratio" value="90" min="0" max="100" step="1" oninput="checkRatios()">
+          </div>
+          <div class="field">
+            <label for="total_cnf_ratio">총 CNF 비율 (%)</label>
+            <input type="number" id="total_cnf_ratio" value="10" min="0" max="100" step="1" oninput="checkRatios()">
+          </div>
+          <div class="field">
+            <label for="cnf_a_ratio">CNF A 비율 (% of CNF)</label>
+            <input type="number" id="cnf_a_ratio" value="50" min="0" max="100" step="1" oninput="checkRatios()">
+          </div>
+          <div class="field">
+            <label for="cnf_c_ratio">CNF C 비율 (% of CNF)</label>
+            <input type="number" id="cnf_c_ratio" value="50" min="0" max="100" step="1" oninput="checkRatios()">
+          </div>
+        </div>
+        <div id="ratio-alerts"></div>
+      </div>
+
+      <br>
+      <button class="btn-calc" onclick="calculate()">⚗️ &nbsp;계산하기</button>
+    </div>
+  </div>
+
+  <!-- ─── 결과 ─── -->
+  <div id="results">
+    <hr class="divider">
+    <div class="results-title">📋 계산 결과</div>
+
+    <!-- KPI -->
+    <div class="card">
+      <div class="card-title">핵심 수치</div>
+      <div class="kpi-grid">
+        <div class="kpi blue">
+          <div class="kpi-label">총 제조량 (0.5 wt%)</div>
+          <div class="kpi-val"><span id="kpi-total"></span><span class="kpi-unit"> g</span></div>
+        </div>
+        <div class="kpi blue">
+          <div class="kpi-label">수초 투입량</div>
+          <div class="kpi-val"><span id="kpi-use"></span><span class="kpi-unit"> g</span></div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">추가 물</div>
+          <div class="kpi-val"><span id="kpi-water"></span><span class="kpi-unit"> g</span></div>
+        </div>
+        <div class="kpi warn">
+          <div class="kpi-label">잔여 버퍼</div>
+          <div class="kpi-val"><span id="kpi-leftover"></span><span class="kpi-unit"> g</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="card">
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="showTab(0, this)">섬유 배합</button>
+        <button class="tab-btn" onclick="showTab(1, this)">첨가제</button>
+        <button class="tab-btn" onclick="showTab(2, this)">레시피</button>
+      </div>
+
+      <!-- Tab 0: 섬유 배합 -->
+      <div class="tab-pane active" id="tab-0">
+        <div class="tbl-wrap">
+          <table id="fiber-table">
+            <thead>
+              <tr>
+                <th>항목</th>
+                <th style="text-align:right">건조 고형분 (g)</th>
+                <th style="text-align:right">현탁액 (g)</th>
+                <th style="text-align:right">전체 비율</th>
+              </tr>
+            </thead>
+            <tbody id="fiber-tbody"></tbody>
+          </table>
+        </div>
+        <br>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>기준값</th><th style="text-align:right">수치</th></tr></thead>
+            <tbody id="basis-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab 1: 첨가제 -->
+      <div class="tab-pane" id="tab-1">
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>첨가제</th>
+                <th style="text-align:right">비율</th>
+                <th style="text-align:right">투입량</th>
+              </tr>
+            </thead>
+            <tbody id="additive-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab 2: 레시피 -->
+      <div class="tab-pane" id="tab-2">
+        <div class="recipe-box" id="recipe-box"></div>
+        <button class="copy-btn" onclick="copyRecipe()">📋 복사</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── 고정값 ──
+const AREA_CM = 25;
+const AREA_M2 = (AREA_CM * AREA_CM) / 10000.0;
+const BUFFER_FACTOR = 1.20;
+const TARGET_CONC = 0.5;
+
+// ── 배합비 실시간 검사 ──
+function checkRatios() {
+  const ukp   = +document.getElementById('ukp_ratio').value || 0;
+  const cnf   = +document.getElementById('total_cnf_ratio').value || 0;
+  const cA    = +document.getElementById('cnf_a_ratio').value || 0;
+  const cC    = +document.getElementById('cnf_c_ratio').value || 0;
+  const box   = document.getElementById('ratio-alerts');
+  let html    = '';
+
+  const sumFiber = ukp + cnf;
+  if (Math.abs(sumFiber - 100) < 0.001) {
+    html += `<div class="alert alert-success">✓ 전체 배합비 합계: ${sumFiber.toFixed(0)}%</div>`;
+  } else {
+    html += `<div class="alert alert-error">✗ 전체 배합비 합계: ${sumFiber.toFixed(1)}% → 100이어야 합니다</div>`;
+  }
+
+  if (cnf === 0) {
+    html += `<div class="alert alert-info">Control group — CNF A/C 비율 미적용</div>`;
+  } else {
+    const sumCNF = cA + cC;
+    if (Math.abs(sumCNF - 100) < 0.001) {
+      html += `<div class="alert alert-success">✓ CNF 내부 비율 합계: ${sumCNF.toFixed(0)}%</div>`;
+    } else {
+      html += `<div class="alert alert-error">✗ CNF 내부 비율 합계: ${sumCNF.toFixed(1)}% → 100이어야 합니다</div>`;
+    }
+  }
+  box.innerHTML = html;
+}
+
+// ── 계산 ──
+function calculate() {
+  const bw   = +document.getElementById('basis_weight').value || 0;
+  const sc   = +document.getElementById('sheet_count').value  || 1;
+  const ukpC = +document.getElementById('ukp_conc').value     || 0;
+  const cAC  = +document.getElementById('cnf_a_conc').value   || 0;
+  const cCC  = +document.getElementById('cnf_c_conc').value   || 0;
+  const ukpR = +document.getElementById('ukp_ratio').value    || 0;
+  const cnfR = +document.getElementById('total_cnf_ratio').value || 0;
+  const cAR  = +document.getElementById('cnf_a_ratio').value  || 0;
+  const cCR  = +document.getElementById('cnf_c_ratio').value  || 0;
+  const wsPct = +document.getElementById('wet_strength').value || 0;
+  const rtPct = +document.getElementById('retention').value   || 0;
+  const szPct = +document.getElementById('sizing').value      || 0;
+  const dpPct = +document.getElementById('dispersant').value  || 0;
+
+  // 유효성
+  if (Math.abs((ukpR + cnfR) - 100) > 0.01) {
+    alert('전체 배합비 합계를 100%로 맞춰주세요.'); return;
+  }
+  if (cnfR !== 0 && Math.abs((cAR + cCR) - 100) > 0.01) {
+    alert('CNF 내부 비율 합계를 100%로 맞춰주세요.'); return;
+  }
+
+  const target_dry   = bw * AREA_M2 * sc;
+  const buffered_dry = target_dry * BUFFER_FACTOR;
+
+  const ukp_dry   = buffered_dry * (ukpR / 100);
+  const cnf_dry   = buffered_dry * (cnfR / 100);
+  const cnf_a_dry = cnfR === 0 ? 0 : cnf_dry * (cAR / 100);
+  const cnf_c_dry = cnfR === 0 ? 0 : cnf_dry * (cCR / 100);
+
+  const ukp_slurry   = ukp_dry   / (ukpC / 100);
+  const cnf_a_slurry = cnf_a_dry === 0 ? 0 : cnf_a_dry / (cAC / 100);
+  const cnf_c_slurry = cnf_c_dry === 0 ? 0 : cnf_c_dry / (cCC / 100);
+  const fiber_mass   = ukp_slurry + cnf_a_slurry + cnf_c_slurry;
+
+  const ws_mass  = buffered_dry * (wsPct / 100);
+  const rt_mass  = buffered_dry * (rtPct / 100);
+  const sz_mass  = buffered_dry * (szPct / 100);
+  const dp_mass  = buffered_dry * (dpPct / 100);
+  const add_mass = ws_mass + rt_mass + sz_mass + dp_mass;
+
+  const total_mass = buffered_dry / (TARGET_CONC / 100);
+  const water_mass = total_mass - fiber_mass - add_mass;
+
+  if (water_mass < 0) {
+    alert('원료 현탁액 및 첨가제만으로 목표 농도(0.5 wt%)를 초과합니다.\n농도 또는 배합비를 확인하세요.'); return;
+  }
+
+  const usage_ratio = target_dry / buffered_dry;
+  const actual_use  = total_mass * usage_ratio;
+  const leftover    = total_mass - actual_use;
+
+  // ─ KPI ─
+  document.getElementById('kpi-total').textContent    = total_mass.toFixed(1);
+  document.getElementById('kpi-use').textContent      = actual_use.toFixed(1);
+  document.getElementById('kpi-water').textContent    = water_mass.toFixed(1);
+  document.getElementById('kpi-leftover').textContent = leftover.toFixed(1);
+
+  // ─ 섬유 배합 탭 ─
+  const cnf_a_global = cAR * cnfR / 100;
+  const cnf_c_global = cCR * cnfR / 100;
+  function fd(v, d=4) { return v > 0 ? v.toFixed(d) : '—'; }
+
+  document.getElementById('fiber-tbody').innerHTML = `
+    <tr>
+      <td>UKP</td>
+      <td class="num">${ukp_dry.toFixed(4)}</td>
+      <td class="num">${ukp_slurry.toFixed(2)}</td>
+      <td class="num">${ukpR.toFixed(1)}%</td>
+    </tr>
+    <tr>
+      <td>CNF A</td>
+      <td class="num">${fd(cnf_a_dry)}</td>
+      <td class="num">${cnf_a_dry > 0 ? cnf_a_slurry.toFixed(2) : '—'}</td>
+      <td class="num">${cnf_a_global > 0 ? cnf_a_global.toFixed(1)+'%' : '—'}</td>
+    </tr>
+    <tr>
+      <td>CNF C</td>
+      <td class="num">${fd(cnf_c_dry)}</td>
+      <td class="num">${cnf_c_dry > 0 ? cnf_c_slurry.toFixed(2) : '—'}</td>
+      <td class="num">${cnf_c_global > 0 ? cnf_c_global.toFixed(1)+'%' : '—'}</td>
+    </tr>
+    <tr class="row-sub">
+      <td>섬유 합계</td>
+      <td class="num">${buffered_dry.toFixed(4)}</td>
+      <td class="num">${fiber_mass.toFixed(2)}</td>
+      <td class="num">100%</td>
+    </tr>
+  `;
+
+  document.getElementById('basis-tbody').innerHTML = `
+    <tr><td>목표 건조 고형분량</td><td class="num">${target_dry.toFixed(4)} g</td></tr>
+    <tr><td>버퍼 반영 고형분량 (+20%)</td><td class="num">${buffered_dry.toFixed(4)} g</td></tr>
+    <tr><td>실제 사용 비율</td><td class="num">${(usage_ratio*100).toFixed(2)}%</td></tr>
+  `;
+
+  // ─ 첨가제 탭 ─
+  const additives = [
+    {name:'습강제',  pct:wsPct, mass:ws_mass},
+    {name:'정착제',  pct:rtPct, mass:rt_mass},
+    {name:'사이징제',pct:szPct, mass:sz_mass},
+    {name:'분산제',  pct:dpPct, mass:dp_mass},
+  ];
+  const totalAddPct = wsPct + rtPct + szPct + dpPct;
+  let addRows = '';
+  for (const a of additives) {
+    if (a.pct > 0) {
+      addRows += `<tr><td>${a.name}</td><td class="num">${a.pct.toFixed(1)}%</td><td class="num">${a.mass.toFixed(2)} g</td></tr>`;
+    } else {
+      addRows += `<tr><td>${a.name}</td><td class="na">미투입</td><td class="na">—</td></tr>`;
+    }
+  }
+  addRows += `<tr class="row-tot"><td>합계</td><td class="num">${totalAddPct.toFixed(1)}%</td><td class="num">${add_mass.toFixed(2)} g</td></tr>`;
+  document.getElementById('additive-tbody').innerHTML = addRows;
+
+  // ─ 레시피 탭 ─
+  let addLines = '';
+  for (const a of additives) {
+    if (a.pct > 0) addLines += `  ${a.name.padEnd(7)}  :  ${a.mass.toFixed(2).padStart(8)} g  (${a.pct.toFixed(1)}%)\n`;
+  }
+  if (!addLines) addLines = '  (없음)\n';
+
+  const recipe = `┌─────────────────────────────────────────────┐
+│         복합 현탁액 제조 레시피              │
+└─────────────────────────────────────────────┘
+
+[섬유 현탁액]
+  UKP 현탁액   :  ${ukp_slurry.toFixed(2).padStart(8)} g
+  CNF A 현탁액 :  ${cnf_a_slurry.toFixed(2).padStart(8)} g
+  CNF C 현탁액 :  ${cnf_c_slurry.toFixed(2).padStart(8)} g
+
+[첨가제]
+${addLines}
+[추가 물]
+  증류수       :  ${water_mass.toFixed(2).padStart(8)} g
+
+──────────────────────────────────────────────
+  총 제조량    :  ${total_mass.toFixed(2).padStart(8)} g  (0.5 wt%)
+──────────────────────────────────────────────
+
+[수초 투입]
+  투입량       :  ${actual_use.toFixed(2).padStart(8)} g
+  목표 평량    :  ${bw.toFixed(2).padStart(8)} g/m²
+  장 수        :  ${String(sc).padStart(8)} 장
+
+[잔여 버퍼]
+  잔량         :  ${leftover.toFixed(2).padStart(8)} g`;
+
+  document.getElementById('recipe-box').textContent = recipe;
+
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('results').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// ── 탭 전환 ──
+function showTab(idx, btn) {
+  document.querySelectorAll('.tab-pane').forEach((p,i) => p.classList.toggle('active', i===idx));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ── 레시피 복사 ──
+function copyRecipe() {
+  const text = document.getElementById('recipe-box').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = '✓ 복사됨';
+    setTimeout(() => btn.textContent = '📋 복사', 1500);
+  });
+}
+
+// 초기 배합비 체크
+checkRatios();
+</script>
+</body>
+</html>
