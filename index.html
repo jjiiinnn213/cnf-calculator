@@ -206,6 +206,9 @@
     white-space: pre; overflow-x: auto;
     line-height: 1.7;
   }
+  .recipe-box .hi  { color: #7dd3fc; }
+  .recipe-box .val { color: #86efac; font-weight: 500; }
+  .recipe-box .dim { color: #4a5568; }
 
   .copy-btn {
     display: inline-block; margin-top: 10px;
@@ -296,19 +299,19 @@
         <div class="field-row col2">
           <div class="field">
             <label for="ukp_ratio">UKP 비율 (%)</label>
-            <input type="number" id="ukp_ratio" value="90" min="0" max="100" step="1" oninput="checkRatios()">
+            <input type="number" id="ukp_ratio" value="90" min="0" max="100" step="1" oninput="autoFill('ukp_ratio','total_cnf_ratio')">
           </div>
           <div class="field">
             <label for="total_cnf_ratio">총 CNF 비율 (%)</label>
-            <input type="number" id="total_cnf_ratio" value="10" min="0" max="100" step="1" oninput="checkRatios()">
+            <input type="number" id="total_cnf_ratio" value="10" min="0" max="100" step="1" oninput="autoFill('total_cnf_ratio','ukp_ratio')">
           </div>
           <div class="field">
             <label for="cnf_a_ratio">CNF A 비율 (% of CNF)</label>
-            <input type="number" id="cnf_a_ratio" value="50" min="0" max="100" step="1" oninput="checkRatios()">
+            <input type="number" id="cnf_a_ratio" value="50" min="0" max="100" step="1" oninput="autoFill('cnf_a_ratio','cnf_c_ratio')">
           </div>
           <div class="field">
             <label for="cnf_c_ratio">CNF C 비율 (% of CNF)</label>
-            <input type="number" id="cnf_c_ratio" value="50" min="0" max="100" step="1" oninput="checkRatios()">
+            <input type="number" id="cnf_c_ratio" value="50" min="0" max="100" step="1" oninput="autoFill('cnf_c_ratio','cnf_a_ratio')">
           </div>
         </div>
         <div id="ratio-alerts"></div>
@@ -412,7 +415,14 @@ const AREA_M2 = (AREA_CM * AREA_CM) / 10000.0;
 const BUFFER_FACTOR = 1.20;
 const TARGET_CONC = 0.5;
 
-// ── 배합비 실시간 검사 ──
+// ── 자동 보완 + 배합비 검사 ──
+function autoFill(sourceId, targetId) {
+  const src = +document.getElementById(sourceId).value;
+  const val = Math.max(0, Math.min(100, 100 - src));
+  document.getElementById(targetId).value = parseFloat(val.toFixed(1));
+  checkRatios();
+}
+
 function checkRatios() {
   const ukp   = +document.getElementById('ukp_ratio').value || 0;
   const cnf   = +document.getElementById('total_cnf_ratio').value || 0;
@@ -484,16 +494,16 @@ function calculate() {
   const dp_mass  = buffered_dry * (dpPct / 100);
   const add_mass = ws_mass + rt_mass + sz_mass + dp_mass;
 
-  const total_mass = buffered_dry / (TARGET_CONC / 100);
-  const water_mass = total_mass - fiber_mass - add_mass;
+  const total_mass    = buffered_dry / (TARGET_CONC / 100);
+  const water_mass    = total_mass - fiber_mass - add_mass;
 
   if (water_mass < 0) {
     alert('원료 현탁액 및 첨가제만으로 목표 농도(0.5 wt%)를 초과합니다.\n농도 또는 배합비를 확인하세요.'); return;
   }
 
-  const usage_ratio = target_dry / buffered_dry;
-  const actual_use  = total_mass * usage_ratio;
-  const leftover    = total_mass - actual_use;
+  const usage_ratio   = target_dry / buffered_dry;
+  const actual_use    = total_mass * usage_ratio;
+  const leftover      = total_mass - actual_use;
 
   // ─ KPI ─
   document.getElementById('kpi-total').textContent    = total_mass.toFixed(1);
@@ -584,7 +594,8 @@ ${addLines}
 ──────────────────────────────────────────────
 
 [수초 투입]
-  투입량       :  ${actual_use.toFixed(2).padStart(8)} g
+  총 투입량    :  ${actual_use.toFixed(2).padStart(8)} g  (${sc}장 합계)
+  1회 투입량   :  ${(actual_use / sc).toFixed(2).padStart(8)} g  (1장당)
   목표 평량    :  ${bw.toFixed(2).padStart(8)} g/m²
   장 수        :  ${String(sc).padStart(8)} 장
 
